@@ -339,6 +339,10 @@ def fetch_sina_zhibo():
             text = strip_tags(it.get("rich_text", ""))
             if not text:
                 continue
+            # 只保留有原文链接的快讯, 保证每条新闻可点击跳转
+            docurl = (it.get("docurl") or "").strip()
+            if not docurl.startswith("http"):
+                continue
             mt = re.match(r"^【([^】]+)】\s*(.*)$", text, re.S)
             title = mt.group(1).strip() if mt else text[:60]
             body = (mt.group(2).strip() if mt else text)
@@ -357,11 +361,40 @@ def fetch_sina_zhibo():
                 "tag": "快讯",
                 "title": title,
                 "summary": body[:180],
-                "url": it.get("docurl", ""),
+                "url": docurl,
                 "time": it.get("create_time", ""),
                 "source": "新浪财经",
             })
     return out
+
+
+def fetch_ppi_macro_news():
+    """生意社「商品与宏观」频道新闻, 链接完整。"""
+    html = ppi_get("/info/")
+    items = []
+    seen = set()
+    pat = re.compile(
+        r'<a[^>]*href="(https://www\.100ppi\.com/info/detail-'
+        r'(\d{4})(\d{2})(\d{2})-\d+\.html)"[^>]*>(.*?)</a>', re.S)
+    for m in pat.finditer(html):
+        url = m.group(1)
+        date = "%s-%s-%s" % (m.group(2), m.group(3), m.group(4))
+        tag_html = m.group(0)
+        tm = re.search(r'title="([^"]*)"', tag_html)
+        text = strip_tags(m.group(5))
+        title = (tm.group(1) if tm else text).strip()
+        if not title or len(title) < 4 or title in seen:
+            continue
+        seen.add(title)
+        items.append({
+            "tag": "宏观",
+            "title": title,
+            "url": url,
+            "time": date,
+            "source": "生意社宏观",
+        })
+    items.sort(key=lambda x: x["time"], reverse=True)
+    return items[:15]
 
 
 # ---------------------------------------------------------------------------
@@ -588,6 +621,10 @@ def main():
         news.setdefault("macro", [])
         if not news["plastic"] and not news["crude"]:
             news = old.get("news") or news
+    try:
+        news["macro"] = (news.get("macro") or []) + fetch_ppi_macro_news()
+    except Exception as e:  # noqa: BLE001
+        warnings.append("生意社宏观新闻抓取失败: %s" % e)
 
     # 补导语(仅生意社条目; 新浪快讯自带摘要)
     old_news = old.get("news") or {}
@@ -604,6 +641,9 @@ def main():
         for item in (news.get(cat) or []) + (old_news.get(cat) or []):
             key = item.get("title", "").strip()
             if not key or key in seen:
+                continue
+            # 无有效原文链接的条目不展示, 避免点了没反应
+            if not (item.get("url") or "").startswith("http"):
                 continue
             seen.add(key)
             merged.append(item)
