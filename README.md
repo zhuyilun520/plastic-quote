@@ -2,7 +2,7 @@
 
 手机优先的塑料原料行情网页，展示原油价格、塑料原料（期货 + 现货）、备货参考信号与行业资讯。
 
-页面地址：部署后填写（GitHub Pages）
+页面地址：https://zhuyilun520.github.io/plastic-quote/
 
 ## 页面内容
 
