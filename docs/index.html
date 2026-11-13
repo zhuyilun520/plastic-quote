@@ -312,11 +312,11 @@ function renderPlastic() {
 
     if (!p.spotOnly) {
       html += '<div class="chartbar">' +
-        '<button data-k="' + p.key + '" data-n="30" onclick="switchRange(this)">近30日</button>' +
-        '<button class="on" data-k="' + p.key + '" data-n="60" onclick="switchRange(this)">近60日</button>' +
-        '<button data-k="' + p.key + '" data-n="90" onclick="switchRange(this)">近90日</button>' +
+        '<button data-k="' + p.kline + '" data-n="30" onclick="switchRange(this)">近30日</button>' +
+        '<button class="on" data-k="' + p.kline + '" data-n="60" onclick="switchRange(this)">近60日</button>' +
+        '<button data-k="' + p.kline + '" data-n="90" onclick="switchRange(this)">近90日</button>' +
         "</div>";
-      html += '<div id="chart-' + p.key + '">' + sparkline(klineValues(p.kline, 60), 300, 56, true) + "</div>";
+      html += '<div id="chart-' + p.kline + '">' + sparkline(klineValues(p.kline, 60), 300, 56, true) + "</div>";
     }
 
     if (sig) {
@@ -351,7 +351,10 @@ function switchRange(btn) {
   var k = btn.getAttribute("data-k");
   var n = parseInt(btn.getAttribute("data-n"), 10);
   var holder = document.getElementById("chart-" + k);
-  if (holder) holder.innerHTML = sparkline(klineValues(k, n), 300, 56, true);
+  if (holder) {
+    var svg = sparkline(klineValues(k, n), 300, 56, true);
+    if (svg) holder.innerHTML = svg;
+  }
 }
 
 function renderSignals() {
