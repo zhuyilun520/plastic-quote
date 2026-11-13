@@ -65,6 +65,17 @@ h2{font-size:14px;color:var(--sub);font-weight:600;margin:20px 2px 8px;letter-sp
 .chartbar button{flex:1;font-size:11px;padding:4px 0;border-radius:7px;
   border:1px solid var(--line);background:#fff;color:var(--sub)}
 .chartbar button.on{background:#eef4ff;border-color:#b2ccff;color:var(--accent);font-weight:600}
+.advice-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.advice-row:last-child{border-bottom:none;padding-bottom:2px}
+.advice-row:first-child{padding-top:0}
+.acode{width:48px;font-weight:700;font-size:16px;flex:none;padding-top:1px}
+.abody{flex:1;min-width:0}
+.badge{display:inline-block;font-size:14px;font-weight:700;border-radius:7px;padding:2px 10px;letter-spacing:.5px}
+.badge.buy{background:#ecfdf3;color:#067647}
+.badge.wait{background:#fffaeb;color:#b54708}
+.badge.hold{background:#fef3f2;color:#b42318}
+.badge.na{background:#f2f4f7;color:#667085;font-size:12px;font-weight:500}
+.areason{font-size:12.5px;color:#667085;margin-top:4px;line-height:1.55}
 .sigrow{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .sigrow:last-child{border-bottom:none;padding-bottom:0}
 .sigrow:first-child{padding-top:0}
@@ -111,6 +122,13 @@ footer{margin-top:26px;padding:14px 4px 0;border-top:1px solid var(--line);
     </div>
     <button class="refresh" onclick="loadData(true)">刷新</button>
   </header>
+
+  <section>
+    <h2>今日备货参考</h2>
+    <div class="card" id="advice"></div>
+    <p style="font-size:11px;color:#98a2b3;margin:6px 4px 0">
+      按「价格位置 + 相对原油比价 + 短期趋势」规则综合判断，仅供参考，不构成采购建议。</p>
+  </section>
 
   <section>
     <h2>原油</h2>
@@ -357,6 +375,56 @@ function switchRange(btn) {
   }
 }
 
+function advice(sig) {
+  if (!sig || sig.pos90 === null || sig.pos90 === undefined) return null;
+  var score = 0;
+  var reasons = [];
+  if (sig.pos90 <= 25) { score += 2; reasons.push("价格处于近90日低位（" + sig.pos90.toFixed(0) + "%分位）"); }
+  else if (sig.pos90 <= 45) { score += 1; reasons.push("价格处于近90日偏低位置（" + sig.pos90.toFixed(0) + "%分位）"); }
+  else if (sig.pos90 >= 80) { score -= 2; reasons.push("价格处于近90日高位（" + sig.pos90.toFixed(0) + "%分位）"); }
+  else if (sig.pos90 >= 60) { score -= 1; reasons.push("价格处于近90日偏高位（" + sig.pos90.toFixed(0) + "%分位）"); }
+  else { reasons.push("价格处于近90日中位（" + sig.pos90.toFixed(0) + "%分位）"); }
+
+  if (sig.ratio_pos90 !== null && sig.ratio_pos90 !== undefined) {
+    if (sig.ratio_pos90 <= 25) { score += 1; reasons.push("相对原油偏便宜"); }
+    else if (sig.ratio_pos90 >= 80) { score -= 1; reasons.push("相对原油偏贵"); }
+  }
+
+  if (sig.pct7 !== null && sig.pct7 !== undefined) {
+    if (sig.pct7 <= -5) { score -= 1; reasons.push("近7日下跌" + Math.abs(sig.pct7).toFixed(1) + "%，仍在走弱"); }
+    else if (sig.pct7 <= -2) { reasons.push("近7日下跌" + Math.abs(sig.pct7).toFixed(1) + "%"); }
+    else if (sig.pct7 >= 5) { score -= 1; reasons.push("近7日上涨" + sig.pct7.toFixed(1) + "%，涨幅较大"); }
+    else if (sig.pct7 >= 2) { reasons.push("近7日上涨" + sig.pct7.toFixed(1) + "%"); }
+    else { reasons.push("近7日走势平稳"); }
+  }
+
+  if (sig.streak <= -3) { score -= 1; reasons.push("已连跌" + (-sig.streak) + "日"); }
+  else if (sig.streak >= 3) { score -= 1; reasons.push("已连涨" + sig.streak + "日"); }
+
+  var label, cls;
+  if (score >= 2) { label = "可以备货"; cls = "buy"; }
+  else if (score <= -2) { label = "暂缓备货"; cls = "hold"; }
+  else { label = "等等看"; cls = "wait"; }
+  return {label: label, cls: cls, reason: reasons.join("，")};
+}
+
+function renderAdvice() {
+  var el = document.getElementById("advice");
+  var rows = [["PP", "PP"], ["PE", "L"], ["PVC", "V"]];
+  var html = "";
+  rows.forEach(function(r) {
+    var a = advice((DATA.signals || {})[r[1]]);
+    if (!a) return;
+    html += '<div class="advice-row"><div class="acode">' + r[0] + "</div>" +
+      '<div class="abody"><span class="badge ' + a.cls + '">' + a.label + "</span>" +
+      '<div class="areason">' + esc(a.reason) + "</div></div></div>";
+  });
+  html += '<div class="advice-row"><div class="acode">ABS</div><div class="abody">' +
+    '<span class="badge na">数据积累中</span>' +
+    '<div class="areason">ABS / GPPS 现货报价暂无历史序列，暂不判断</div></div></div>';
+  el.innerHTML = html;
+}
+
 function renderSignals() {
   var el = document.getElementById("signals");
   var rows = [
@@ -491,6 +559,7 @@ function renderWarn(data) {
 function renderAll(data) {
   DATA = data;
   document.getElementById("gen").textContent = data.generated_at || "--";
+  renderAdvice();
   renderOil();
   renderPlastic();
   renderSignals();
